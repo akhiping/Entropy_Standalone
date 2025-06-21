@@ -1,112 +1,76 @@
-import React, { useCallback } from 'react'
-import {
-  ReactFlow,
-  MiniMap,
-  Controls,
-  Background,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  type OnConnect,
-  type Node,
-  type Edge,
-} from 'reactflow'
+import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 
-import { MindmapProvider } from './stores/mindmapStore'
-import { StickyNode } from './components/mindmap'
-import { Toolbar, Sidebar } from './components/ui'
+import { MindmapProvider, useMindmapStore } from './stores/mindmapStore'
+import { ChatInterface } from './components/chat/ChatInterface'
+import { MindmapCanvas } from './components/mindmap/MindmapCanvas'
+import { Sidebar } from './components/ui/Sidebar'
+import { Toolbar } from './components/ui/Toolbar'
 
-// Custom node types
-const nodeTypes = {
-  stickyNote: StickyNode,
-}
+function AppContent() {
+  const { activeView, theme, setTheme } = useMindmapStore()
+  
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
 
-// Initial nodes for demo
-const initialNodes: Node[] = [
-  {
-    id: '1',
-    type: 'stickyNote',
-    position: { x: 250, y: 250 },
-    data: {
-      id: 'sticky_1',
-      title: 'Welcome to Entropy',
-      content: 'This is your first sticky note in the mindmap',
-      query: 'What is Entropy?',
-      response: 'Entropy is a contextual idea exploration platform that helps you organize and expand your thoughts using AI-powered responses.',
-      isExpanded: true,
-    },
-  },
-]
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('entropy-theme') as 'light' | 'dark' | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+    } else {
+      // Default to system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      setTheme(prefersDark ? 'dark' : 'light')
+    }
+  }, [setTheme])
 
-const initialEdges: Edge[] = []
-
-function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-
-  const onConnect: OnConnect = useCallback(
-    (connection) => setEdges((eds) => addEdge(connection, eds)),
-    [setEdges]
-  )
+  // Save theme to localStorage
+  useEffect(() => {
+    localStorage.setItem('entropy-theme', theme)
+  }, [theme])
 
   return (
-    <MindmapProvider>
-      <div className="h-screen w-screen flex">
-        {/* Sidebar */}
-        <Sidebar />
+    <div className="h-screen w-full bg-secondary text-primary flex overflow-hidden">
+      {/* Sidebar */}
+      <Sidebar />
+      
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
+        {/* Toolbar */}
+        <Toolbar />
         
-        {/* Main Content */}
-        <div className="flex-1 relative">
-          {/* Toolbar */}
-          <Toolbar />
-          
-          {/* React Flow Canvas */}
-          <div className="h-full w-full">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              nodeTypes={nodeTypes}
-              fitView
-              fitViewOptions={{
-                padding: 0.1,
-              }}
-              className="bg-gray-50"
-            >
-              <Controls
-                position="bottom-left"
-                className="!bg-white !border-gray-200 !shadow-lg"
-              />
-              <MiniMap
-                position="bottom-right"
-                className="!bg-white !border-gray-200 !shadow-lg"
-                maskColor="rgba(0, 0, 0, 0.1)"
-                nodeColor="#6366f1"
-              />
-              <Background
-                color="#e5e7eb"
-                gap={20}
-                size={1}
-              />
-            </ReactFlow>
-          </div>
+        {/* Main view */}
+        <div className="flex-1 overflow-hidden">
+          {activeView === 'chat' ? (
+            <ChatInterface />
+          ) : (
+            <MindmapCanvas />
+          )}
         </div>
-        
-        {/* Toast Notifications */}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#363636',
-              color: '#fff',
-            },
-          }}
-        />
       </div>
+      
+      {/* Toast Notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+        }}
+      />
+    </div>
+  )
+}
+
+function App() {
+  return (
+    <MindmapProvider>
+      <AppContent />
     </MindmapProvider>
   )
 }
