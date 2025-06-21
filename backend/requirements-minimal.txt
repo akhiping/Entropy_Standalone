@@ -1,0 +1,28 @@
+# Core Web Framework
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+
+# Database and Storage
+sqlalchemy==2.0.29
+alembic==1.13.1
+
+# Vector Database
+weaviate-client==4.5.4
+
+# LLM Providers (minimal)
+openai==1.14.3
+httpx==0.27.0
+
+# Data Processing
+pydantic==2.5.0
+pydantic-settings==2.1.0
+numpy==1.24.4
+
+# Utilities
+python-dotenv==1.0.1
+loguru==0.7.2
+
+# Development and Testing (minimal)
+pytest==8.1.1
+black==24.3.0 
