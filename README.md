@@ -7,9 +7,10 @@ Entropy is a standalone web application for idea exploration and contextual thin
 - **Interactive Mindmap**: Drag-and-drop sticky notes with visual branching
 - **RAG-Powered Responses**: Context-aware AI responses using semantic retrieval
 - **Multi-LLM Support**: Pluggable adapter for OpenAI, Claude, Ollama, and more
-- **Smart Branching**: Automatic topic deviation detection and branch creation
+- **Smart Branching**: Auto-detects shifts in conversation context and visually forks branches (proprietary logic not included in public release)
 - **Vector Search**: Semantic similarity search across conversation history
-- **Reranking**: Advanced context reranking for improved relevance
+- **Reranking**: Uses advanced reranking to prioritize relevant context (details abstracted)
+
 
 ## Architecture
 
@@ -97,6 +98,10 @@ LOG_LEVEL=INFO
 3. Make your changes
 4. Add tests
 5. Submit a pull request
+
+## Contributors
+
+Akhila Pingali
 
 ## License
 
