@@ -7,13 +7,16 @@ export const ChatInterface: React.FC = () => {
     selectedText, 
     isProcessing,
     sendMessage,
-    setSelectedText 
+    setSelectedText,
+    createBranch,
+    setActiveView 
   } = useMindmapStore();
   
   const [input, setInput] = useState('');
   const [showBranchButton, setShowBranchButton] = useState(false);
   const [branchButtonPosition, setBranchButtonPosition] = useState({ x: 0, y: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Get the active thread
   const activeThread = mindmap?.threads?.find((t: any) => t.id === mindmap.activeThreadId);
@@ -26,120 +29,166 @@ export const ChatInterface: React.FC = () => {
     scrollToBottom();
   }, [activeThread?.messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isProcessing) {
-      await sendMessage(input);
-      setInput('');
-    }
-  };
+  // Handle text selection for creating sticky notes
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+          setShowBranchButton(false);
+          return;
+        }
 
-  const handleTextSelection = () => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim()) {
-      const text = selection.toString().trim();
-      if (text.length > 5) { // Minimum selection length
-        setSelectedText(text);
-        
-        // Get selection position
+        const text = selection.toString().trim();
+        if (!text || text.length < 10) {
+          setShowBranchButton(false);
+          return;
+        }
+
         const range = selection.getRangeAt(0);
         const rect = range.getBoundingClientRect();
-        setBranchButtonPosition({
-          x: rect.right + 10,
-          y: rect.top + rect.height / 2
-        });
-        setShowBranchButton(true);
-      }
-    } else {
-      setShowBranchButton(false);
-      setSelectedText('');
-    }
-  };
-
-  const handleCreateBranch = () => {
-    if (selectedText) {
-      // For now, just show an alert - we'll implement proper branching later
-      alert(`Creating branch for: "${selectedText}"`);
-      setShowBranchButton(false);
-      setSelectedText('');
-      window.getSelection()?.removeAllRanges();
-    }
-  };
-
-  // Show welcome screen if no messages exist
-  if (!activeThread || activeThread.messages.length === 0) {
-    return (
-      <div className="flex flex-col h-full bg-primary">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-secondary max-w-md">
-            <h2 className="text-xl font-semibold mb-2 text-primary">Ready to Explore Ideas</h2>
-            <p className="text-sm mb-6">
-              Start a conversation below to begin exploring ideas through contextual branching
-            </p>
-          </div>
-        </div>
         
-        <div className="p-4 border-t border-primary">
-          <form onSubmit={handleSendMessage} className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your message to get started..."
-              className="flex-1 px-4 py-2 bg-secondary border border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary text-primary"
-              disabled={isProcessing}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isProcessing}
-              className="px-6 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isProcessing ? '...' : 'Send'}
-            </button>
-          </form>
+        // Check if selection is within chat container
+        if (chatContainerRef.current && chatContainerRef.current.contains(range.commonAncestorContainer)) {
+          setBranchButtonPosition({
+            x: rect.right + window.scrollX + 10,
+            y: rect.bottom + window.scrollY + 5,
+          });
+          setSelectedText(text);
+          setShowBranchButton(true);
+        } else {
+          setShowBranchButton(false);
+        }
+      }, 100);
+    };
+
+    const handleMouseDown = () => {
+      setShowBranchButton(false);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [setSelectedText]);
+
+  const handleSendMessage = async () => {
+    if (!input.trim() || isProcessing) return;
+    
+    const message = input.trim();
+    setInput('');
+    await sendMessage(message);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleCreateSticky = () => {
+    if (!selectedText) return;
+    
+    // Get the current selection position for sticky placement
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    // Calculate position relative to the viewport
+    const position = {
+      x: rect.left + window.scrollX,
+      y: rect.top + window.scrollY,
+    };
+    
+    // Create the sticky note
+    createBranch({
+      selectedText,
+      position,
+      sourceThreadId: activeThread?.id || '',
+    });
+    
+    // Clear selection and hide button
+    window.getSelection()?.removeAllRanges();
+    setShowBranchButton(false);
+    setSelectedText('');
+    
+    // Don't switch views - keep in chat and show minimap
+  };
+
+  if (!activeThread) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="text-6xl">🧠</div>
+          <h2 className="text-2xl font-semibold text-primary">Ready to Explore Ideas</h2>
+          <p className="text-secondary max-w-md">
+            Start a conversation or highlight text to create branching discussions and sticky notes.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-primary relative">
-      {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-primary bg-secondary">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-primary">
-              {activeThread.title}
-            </h1>
-            <p className="text-sm text-secondary">
-              {activeThread.messages.length} messages
-            </p>
-          </div>
-          
-          <div className="text-sm text-tertiary">
-            {activeThread.isMainThread ? 'Main Thread' : 'Branch Thread'}
-          </div>
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col h-full relative">
+      {/* Branch Button */}
+      {showBranchButton && (
+        <button
+          onClick={handleCreateSticky}
+          style={{
+            position: 'fixed',
+            left: `${branchButtonPosition.x}px`,
+            top: `${branchButtonPosition.y}px`,
+            zIndex: 9999,
+            background: 'rgba(247, 245, 158, 0.95)',
+            border: '2px solid #ddd',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            color: '#333',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+          }}
+        >
+          📌 Create Sticky
+        </button>
+      )}
 
       {/* Messages */}
       <div 
-        className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
-        onMouseUp={handleTextSelection}
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-        {activeThread.messages.map((message: any) => (
+        {activeThread.messages.map((message: any, index: number) => (
           <div
             key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-3xl px-4 py-3 rounded-lg ${
+              className={`max-w-[80%] rounded-lg px-4 py-2 ${
                 message.role === 'user'
                   ? 'bg-accent-primary text-white'
-                  : 'bg-secondary text-primary border border-primary'
+                  : 'bg-secondary text-primary'
               }`}
+              style={{ userSelect: 'text', cursor: 'text' }}
             >
-              <div className="text-sm whitespace-pre-wrap select-text">
+              <div className="whitespace-pre-wrap break-words">
                 {message.content}
               </div>
             </div>
@@ -148,10 +197,14 @@ export const ChatInterface: React.FC = () => {
         
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="bg-secondary text-primary border border-primary px-4 py-3 rounded-lg">
+            <div className="max-w-[80%] rounded-lg px-4 py-2 bg-secondary text-primary">
               <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-accent-primary"></div>
-                <span className="text-sm">Thinking...</span>
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="text-sm text-secondary">AI is thinking...</span>
               </div>
             </div>
           </div>
@@ -160,55 +213,27 @@ export const ChatInterface: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Branch Button */}
-      {showBranchButton && (
-        <div
-          className="fixed z-50 branch-button"
-          style={{
-            left: `${branchButtonPosition.x}px`,
-            top: `${branchButtonPosition.y}px`,
-            transform: 'translateY(-50%)'
-          }}
-        >
-          <button
-            onClick={handleCreateBranch}
-            className="px-3 py-1.5 bg-accent-primary text-white text-sm font-medium rounded-lg hover:bg-accent-secondary transition-colors shadow-lg border-2 border-white"
-          >
-            + Branch
-          </button>
-        </div>
-      )}
-
       {/* Input */}
-      <div className="flex-shrink-0 p-4 border-t border-primary bg-secondary">
-        <form onSubmit={handleSendMessage} className="flex gap-2">
+      <div className="border-t border-primary p-4">
+        <div className="flex space-x-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
             placeholder="Type your message..."
-            className="flex-1 px-4 py-2 bg-primary border border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary text-primary"
             disabled={isProcessing}
+            className="flex-1 px-4 py-2 border border-primary rounded-lg bg-primary text-primary placeholder-secondary focus:outline-none focus:ring-2 focus:ring-accent-primary"
           />
           <button
-            type="submit"
-            disabled={!input.trim() || isProcessing}
-            className="px-6 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            onClick={handleSendMessage}
+            disabled={isProcessing || !input.trim()}
+            className="px-6 py-2 bg-accent-primary text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent-secondary transition-colors"
           >
-            {isProcessing ? '...' : 'Send'}
+            Send
           </button>
-        </form>
-      </div>
-
-      {/* Selection indicator */}
-      {selectedText && (
-        <div className="px-4 py-2 bg-accent-primary/10 border-t border-accent-primary/20">
-          <div className="text-xs text-accent-primary">
-            ✂️ Selected: "{selectedText.slice(0, 50)}..." 
-            <span className="ml-2">Highlight text to create branches!</span>
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }; 

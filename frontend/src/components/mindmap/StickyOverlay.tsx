@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
 import { useMindmapStore } from '../../stores/mindmapStore';
 
 // Color themes from the extension
@@ -37,7 +36,7 @@ const COLOR_THEMES = {
   ]
 };
 
-interface StickyNodeData {
+interface StickyData {
   id: string;
   title: string;
   content: string;
@@ -47,10 +46,14 @@ interface StickyNodeData {
   stackId?: string;
   stackIndex?: number;
   zIndex: number;
-  position?: { x: number; y: number };
+  position: { x: number; y: number };
 }
 
-export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected }) => {
+interface StickyOverlayProps {
+  data: StickyData;
+}
+
+export const StickyOverlay: React.FC<StickyOverlayProps> = ({ data }) => {
   const { updateSticky, removeSticky, sendMessageToSticky } = useMindmapStore();
   const [isMinimized, setIsMinimized] = useState(data.isMinimized || false);
   const [currentColor, setCurrentColor] = useState(data.color || COLOR_THEMES.default[0]);
@@ -59,6 +62,9 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState(data.position);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll chat to bottom when new messages are added
@@ -67,6 +73,41 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
       chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
   }, [data.chatHistory]);
+
+  // Handle dragging
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newPosition = {
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y,
+      };
+      setPosition(newPosition);
+      updateSticky(data.id, { position: newPosition });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset, data.id, updateSticky]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
 
   const handleMinimize = () => {
     const newMinimized = !isMinimized;
@@ -117,11 +158,12 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
       className="sticky-note"
       data-id={data.id}
       style={{
+        position: 'fixed',
+        left: `${position.x}px`,
+        top: `${position.y}px`,
         background: currentColor,
         borderRadius: '10px',
-        boxShadow: selected 
-          ? '0 4px 20px rgba(0, 0, 0, 0.15)' 
-          : '0 2px 12px rgba(0, 0, 0, 0.14)',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.14)',
         overflow: 'hidden',
         minWidth: '280px',
         minHeight: '180px',
@@ -130,10 +172,9 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         transition: 'all 0.2s ease',
         zIndex: data.zIndex || 1000,
-        position: 'fixed',
-        left: `${data.position?.x || 100}px`,
-        top: `${data.position?.y || 100}px`,
+        cursor: isDragging ? 'grabbing' : 'grab',
       }}
+      onMouseDown={handleMouseDown}
     >
       {/* Header */}
       <div 
@@ -199,14 +240,14 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
           {/* Color Picker */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Theme Selector */}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
               {Object.keys(COLOR_THEMES).filter(theme => theme !== 'default').map((theme) => (
                 <div
                   key={theme}
                   onClick={() => handleThemeSelect(theme)}
                   style={{
-                    width: '32px',
-                    height: '32px',
+                    width: '24px',
+                    height: '24px',
                     borderRadius: '50%',
                     cursor: 'pointer',
                     border: selectedTheme === theme ? '2px solid #4CAF50' : '2px solid #ddd',
@@ -216,13 +257,12 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
                     background: '#f8f8f8',
                     display: 'flex',
                     transform: selectedTheme === theme ? 'scale(1.1)' : 'scale(1)',
-                    boxShadow: selectedTheme === theme ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
                   }}
                   title={theme.charAt(0).toUpperCase() + theme.slice(1)}
                 >
                   {/* Theme Preview */}
                   <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-                    {COLOR_THEMES[theme as keyof typeof COLOR_THEMES].slice(0, 3).map((color, i) => (
+                    {COLOR_THEMES[theme as keyof typeof COLOR_THEMES].slice(0, 2).map((color, i) => (
                       <div
                         key={i}
                         style={{
@@ -241,12 +281,12 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
             {showColorPicker && selectedTheme && (
               <div style={{
                 display: 'flex',
-                gap: '8px',
+                gap: '4px',
                 flexWrap: 'wrap',
                 justifyContent: 'center',
-                maxHeight: '60px',
+                maxHeight: '40px',
                 opacity: 1,
-                margin: '8px 0',
+                margin: '4px 0',
                 transition: 'all 0.4s ease',
               }}>
                 {COLOR_THEMES[selectedTheme as keyof typeof COLOR_THEMES].map((color, i) => (
@@ -254,50 +294,29 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
                     key={i}
                     onClick={() => handleColorChange(color)}
                     style={{
-                      width: '24px',
-                      height: '24px',
+                      width: '16px',
+                      height: '16px',
                       borderRadius: '50%',
                       cursor: 'pointer',
                       background: color,
                       border: currentColor === color ? '2px solid #333' : '2px solid transparent',
                       transition: 'all 0.2s ease',
-                      transform: currentColor === color ? 'scale(1.1)' : 'scale(1)',
                     }}
                   />
                 ))}
               </div>
             )}
-            
-            {/* Transparent Option */}
-            <div
-              onClick={() => handleColorChange('transparent')}
-              style={{
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                border: '1px dashed #888',
-                background: 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                alignSelf: 'center',
-                marginTop: '8px',
-              }}
-            >
-              <span style={{ fontSize: '10px', color: '#666', fontWeight: 500 }}>Clear</span>
-            </div>
           </div>
         </div>
 
         {/* Context Label */}
         <div style={{
-          fontSize: '12px',
+          fontSize: '11px',
           color: 'rgba(0, 0, 0, 0.7)',
-          padding: '4px 0',
+          padding: '2px 0',
           fontWeight: 'bold',
         }}>
-          <strong>Context:</strong> {data.content}
+          <strong>Context:</strong> {data.content.slice(0, 40)}...
         </div>
       </div>
 
@@ -306,11 +325,11 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
         <div
           ref={chatHistoryRef}
           style={{
-            padding: '8px',
+            padding: '6px',
             overflowY: 'auto',
             background: 'rgba(255, 255, 255, 0.3)',
-            minHeight: '60px',
-            maxHeight: '150px',
+            minHeight: '40px',
+            maxHeight: '100px',
           }}
         >
           {data.chatHistory && data.chatHistory.length > 0 ? (
@@ -318,9 +337,9 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
               <div
                 key={i}
                 style={{
-                  marginBottom: '8px',
-                  padding: '4px 8px',
-                  borderRadius: '8px',
+                  marginBottom: '4px',
+                  padding: '3px 6px',
+                  borderRadius: '6px',
                   background: message.role === 'user' 
                     ? 'rgba(0, 123, 255, 0.1)' 
                     : 'rgba(108, 117, 125, 0.1)',
@@ -330,14 +349,14 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
                 }}
               >
                 <div style={{ 
-                  fontSize: '11px', 
+                  fontSize: '10px', 
                   color: message.role === 'user' ? '#007bff' : '#6c757d',
                   fontWeight: 'bold',
-                  marginBottom: '2px',
+                  marginBottom: '1px',
                 }}>
                   {message.role === 'user' ? 'You' : 'AI'}
                 </div>
-                <div style={{ fontSize: '13px', color: '#333', lineHeight: '1.4' }}>
+                <div style={{ fontSize: '11px', color: '#333', lineHeight: '1.3' }}>
                   {message.content}
                 </div>
               </div>
@@ -347,9 +366,10 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
               color: '#666', 
               fontStyle: 'italic', 
               textAlign: 'center',
-              padding: '20px',
+              padding: '15px',
+              fontSize: '11px',
             }}>
-              Start a conversation about this context...
+              Ask something about this context...
             </div>
           )}
         </div>
@@ -359,8 +379,8 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
       {!isMinimized && (
         <div style={{
           display: 'flex',
-          gap: '8px',
-          padding: '8px',
+          gap: '6px',
+          padding: '6px',
           borderTop: '1px solid #eee',
           background: 'rgba(255, 255, 255, 0.4)',
         }}>
@@ -369,14 +389,14 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask something relevant..."
+            placeholder="Ask something..."
             disabled={isProcessing}
             style={{
               flex: 1,
               border: '1px solid #ddd',
               borderRadius: '4px',
-              padding: '4px 8px',
-              fontSize: '14px',
+              padding: '3px 6px',
+              fontSize: '12px',
               color: '#111',
               background: '#fff',
             }}
@@ -389,19 +409,15 @@ export const StickyNode: React.FC<NodeProps<StickyNodeData>> = ({ data, selected
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              padding: '4px 12px',
+              padding: '3px 8px',
               cursor: isProcessing ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
+              fontSize: '12px',
             }}
           >
             {isProcessing ? '...' : '➤'}
           </button>
         </div>
       )}
-
-      {/* React Flow Handles */}
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </div>
   );
 }; 

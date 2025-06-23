@@ -30,11 +30,14 @@ interface Sticky {
   threadId: string
   position: { x: number; y: number }
   size: { width: number; height: number }
-  isExpanded: boolean
-  isActive: boolean
-  stackPosition: number
-  parentStickyId?: string
-  previewText?: string
+  title: string
+  content: string
+  color: string
+  isMinimized: boolean
+  chatHistory: Message[]
+  stackId?: string
+  stackIndex?: number
+  zIndex: number
   createdAt: Date
   updatedAt: Date
 }
@@ -105,6 +108,21 @@ interface MindmapState {
   deleteStickyNote: (stickyId: string) => void
   setTheme: (theme: 'light' | 'dark') => void
   toggleTheme: () => void
+
+  // Update a sticky note
+  updateSticky: (id: string, updates: Partial<Sticky>) => void
+
+  // Remove a sticky note
+  removeSticky: (id: string) => void
+
+  // Send message to a specific sticky note
+  sendMessageToSticky: (stickyId: string, message: string) => Promise<void>
+
+  // Create branch/sticky from selected text
+  createBranch: (request: { selectedText: string; position: { x: number; y: number }; sourceThreadId: string }) => void
+
+  // Create a new sticky note
+  createSticky: (title: string, position?: { x: number; y: number }) => void
 }
 
 // Initial LLM configuration
@@ -338,10 +356,14 @@ export const useMindmapStore = create<MindmapState>()(
           threadId: branchThreadId,
           position: request.position,
           size: { width: 300, height: 200 },
-          isExpanded: false,
-          isActive: false,
-          stackPosition: 0,
-          previewText: request.selectedText.slice(0, 100),
+          title: request.selectedText.slice(0, 100),
+          content: request.selectedText.slice(0, 100),
+          color: '#000000',
+          isMinimized: false,
+          chatHistory: [],
+          stackId: request.sourceThreadId,
+          stackIndex: 0,
+          zIndex: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         }
@@ -369,7 +391,7 @@ export const useMindmapStore = create<MindmapState>()(
             
             // Update sticky states
             state.mindmap.stickies.forEach(sticky => {
-              sticky.isActive = sticky.threadId === threadId
+              sticky.isMinimized = sticky.threadId !== threadId
             })
           }
         })
@@ -385,10 +407,14 @@ export const useMindmapStore = create<MindmapState>()(
           threadId,
           position,
           size: { width: 300, height: 200 },
-          isExpanded: false,
-          isActive: false,
-          stackPosition: 0,
-          previewText: thread.messages[thread.messages.length - 1]?.content.slice(0, 100),
+          title: thread.messages[thread.messages.length - 1]?.content.slice(0, 100) || '',
+          content: thread.messages[thread.messages.length - 1]?.content.slice(0, 100) || '',
+          color: '#000000',
+          isMinimized: false,
+          chatHistory: [],
+          stackId: thread.parentThreadId,
+          stackIndex: thread.messages.length - 1,
+          zIndex: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         }
@@ -419,8 +445,8 @@ export const useMindmapStore = create<MindmapState>()(
           const childSticky = state.mindmap?.stickies.find(s => s.id === childStickyId)
           
           if (parentSticky && childSticky) {
-            childSticky.parentStickyId = parentStickyId
-            childSticky.stackPosition = (parentSticky.stackPosition || 0) + 1
+            childSticky.stackId = parentSticky.stackId
+            childSticky.stackIndex = (parentSticky.stackIndex || 0) + 1
             childSticky.position = { ...parentSticky.position }
             childSticky.updatedAt = new Date()
           }
@@ -473,10 +499,14 @@ export const useMindmapStore = create<MindmapState>()(
               threadId: uuidv4(), // Create a new thread for this sticky
               position: position || { x: 100, y: 100 },
               size: { width: 300, height: 200 },
-              isExpanded: false,
-              isActive: false,
-              stackPosition: 0,
-              previewText: title,
+              title: title,
+              content: title,
+              color: '#000000',
+              isMinimized: false,
+              chatHistory: [],
+              stackId: uuidv4(),
+              stackIndex: 0,
+              zIndex: 0,
               createdAt: new Date(),
               updatedAt: new Date(),
             }
@@ -529,6 +559,148 @@ export const useMindmapStore = create<MindmapState>()(
         set((state) => {
           state.theme = state.theme === 'light' ? 'dark' : 'light'
         })
+      },
+
+      // Update a sticky note
+      updateSticky: (id: string, updates: Partial<Sticky>) => {
+        set((state) => {
+          if (state.mindmap) {
+            state.mindmap.stickies = state.mindmap.stickies.map(sticky =>
+              sticky.id === id ? { ...sticky, ...updates } : sticky
+            );
+          }
+        });
+      },
+
+      // Remove a sticky note
+      removeSticky: (id: string) => {
+        set((state) => {
+          if (state.mindmap) {
+            state.mindmap.stickies = state.mindmap.stickies.filter(sticky => sticky.id !== id);
+          }
+        });
+      },
+
+      // Send message to a specific sticky note
+      sendMessageToSticky: async (stickyId: string, message: string) => {
+        set((state) => {
+          state.isProcessing = true;
+        });
+
+        try {
+          // Add user message immediately
+          set((state) => {
+            if (state.mindmap) {
+              state.mindmap.stickies = state.mindmap.stickies.map(sticky => {
+                if (sticky.id === stickyId) {
+                  const userMessage = {
+                    id: uuidv4(),
+                    role: 'user' as const,
+                    content: message,
+                    timestamp: new Date(),
+                  };
+                  return {
+                    ...sticky,
+                    chatHistory: [...(sticky.chatHistory || []), userMessage]
+                  };
+                }
+                return sticky;
+              });
+            }
+          });
+
+          // Simulate AI response (replace with actual API call later)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const responses = [
+            "That's an interesting perspective on this topic. Let me elaborate on that point...",
+            "I can help you explore this idea further. Here are some related concepts to consider...",
+            "Based on the context you've shared, I think there are several angles we could examine...",
+            "This connects to some broader themes. Would you like me to dive deeper into any particular aspect?",
+            "Great question! This reminds me of similar concepts in related fields..."
+          ];
+          
+          const aiResponse = responses[Math.floor(Math.random() * responses.length)];
+          
+          set((state) => {
+            if (state.mindmap) {
+              state.mindmap.stickies = state.mindmap.stickies.map(sticky => {
+                if (sticky.id === stickyId) {
+                  const aiMessage = {
+                    id: uuidv4(),
+                    role: 'assistant' as const,
+                    content: aiResponse,
+                    timestamp: new Date(),
+                  };
+                  return {
+                    ...sticky,
+                    chatHistory: [...(sticky.chatHistory || []), aiMessage]
+                  };
+                }
+                return sticky;
+              });
+            }
+          });
+
+        } catch (error) {
+          console.error('Failed to send message:', error);
+        } finally {
+          set((state) => {
+            state.isProcessing = false;
+          });
+        }
+      },
+
+      // Create branch/sticky from selected text
+      createBranch: (request: { selectedText: string; position: { x: number; y: number }; sourceThreadId: string }) => {
+        set((state) => {
+          if (state.mindmap) {
+            const newSticky: Sticky = {
+              id: uuidv4(),
+              threadId: request.sourceThreadId,
+              position: request.position,
+              size: { width: 420, height: 320 },
+              title: request.selectedText.slice(0, 50) + (request.selectedText.length > 50 ? '...' : ''),
+              content: request.selectedText,
+              color: 'rgba(247, 245, 158, 0.85)', // Default sticky yellow
+              isMinimized: false,
+              chatHistory: [],
+              stackId: undefined,
+              stackIndex: 0,
+              zIndex: 1000 + state.mindmap.stickies.length,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            
+            state.mindmap.stickies.push(newSticky);
+          }
+        });
+      },
+
+      // Create a new sticky note
+      createSticky: (title: string, position?: { x: number; y: number }) => {
+        set((state) => {
+          if (state.mindmap) {
+            const newSticky: Sticky = {
+              id: uuidv4(),
+              threadId: state.activeThreadId || '',
+              position: position || { x: Math.random() * 200 + 100, y: Math.random() * 200 + 100 },
+              size: { width: 320, height: 240 }, // Smaller, more reasonable size
+              title: title || 'New Idea',
+              content: title || 'New Idea',
+              color: 'rgba(247, 245, 158, 0.85)', // Default sticky yellow
+              isMinimized: false,
+              chatHistory: [],
+              stackId: undefined,
+              stackIndex: 0,
+              zIndex: 1000 + state.mindmap.stickies.length,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            
+            state.mindmap.stickies.push(newSticky);
+          }
+        });
       },
     })),
     {
