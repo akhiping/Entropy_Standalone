@@ -98,6 +98,10 @@ LOG_LEVEL=INFO
 4. Add tests
 5. Submit a pull request
 
+## Contributors
+
+Akhila Pingali
+
 ## License
 
 MIT License - see LICENSE file for details. 
