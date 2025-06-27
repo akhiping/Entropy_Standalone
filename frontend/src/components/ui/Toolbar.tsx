@@ -50,7 +50,7 @@ export const Toolbar: React.FC = () => {
       <div className="flex items-center space-x-3">
         <button
           onClick={handleAddSticky}
-          className="px-4 py-2 bg-accent-primary text-white rounded-lg font-medium hover:bg-accent-secondary transition-colors shadow-sm border border-accent-primary"
+          className="px-4 py-2 btn-accent rounded-lg font-medium transition-colors shadow-sm border"
         >
           + Add Sticky
         </button>
