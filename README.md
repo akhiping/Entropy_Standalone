@@ -33,7 +33,7 @@ entropy_standalone/
 
 ### Backend
 - FastAPI (Python web framework)
-- Weaviate (vector database)
+- Pinecone (vector database)
 - OpenAI/HuggingFace (embeddings)
 - BGE Reranker (context reranking)
 - Pydantic (data validation)
@@ -55,7 +55,7 @@ entropy_standalone/
 
 2. **Start services**:
    ```bash
-   docker-compose up -d  # Start Weaviate
+   docker-compose up -d  # Start Redis (cache)
    npm run dev:all       # Start both frontend and backend
    ```
 
@@ -73,9 +73,9 @@ Copy `.env.example` to `.env` and configure:
 OPENAI_API_KEY=your_key_here
 ANTHROPIC_API_KEY=your_key_here
 
-# Vector Database
-WEAVIATE_URL=http://localhost:8080
-WEAVIATE_API_KEY=optional
+# Vector Database (Pinecone)
+PINECONE_API_KEY=your_pinecone_api_key_here
+PINECONE_REGION=us-east-1
 
 # Application
 ENVIRONMENT=development

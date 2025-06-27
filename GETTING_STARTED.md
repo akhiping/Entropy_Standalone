@@ -75,14 +75,14 @@ cd ..
 
 ### 4. Start Services
 
-Start the vector database and cache:
+Start the cache service:
 ```bash
 docker-compose up -d
 ```
 
-Wait for services to be ready (about 30 seconds), then check:
+Wait for Redis to be ready (about 10 seconds), then check:
 ```bash
-curl http://localhost:8080/v1/.well-known/ready  # Weaviate health check
+docker-compose ps  # Check service status
 ```
 
 ### 5. Run the Application
@@ -108,7 +108,6 @@ Once running, you can access:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
-- **Weaviate Console**: http://localhost:8080
 
 ## Development Workflow
 
@@ -152,7 +151,7 @@ docker-compose up -d --force-recreate
 **Port conflicts:**
 - Frontend (5173): Change in `frontend/vite.config.ts`
 - Backend (8000): Change in `backend/main.py`
-- Weaviate (8080): Change in `docker-compose.yml`
+- Redis (6379): Change in `docker-compose.yml`
 
 **Dependencies not installing:**
 ```bash

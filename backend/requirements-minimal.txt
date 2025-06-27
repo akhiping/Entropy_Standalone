@@ -8,7 +8,7 @@ sqlalchemy==2.0.29
 alembic==1.13.1
 
 # Vector Database
-weaviate-client==4.5.4
+pinecone-client==3.2.2
 
 # LLM Providers (minimal)
 openai==1.14.3

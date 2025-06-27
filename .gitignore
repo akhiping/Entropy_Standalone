@@ -157,7 +157,4 @@ temp/
 *.sqlite3
 
 # Docker
-.dockerignore
-
-# Weaviate data
-weaviate_data/ 
+.dockerignore 

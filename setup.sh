@@ -121,11 +121,11 @@ if [ $? -eq 0 ]; then
     print_status "Waiting for services to be ready..."
     sleep 10
     
-    # Check if Weaviate is ready
-    if curl -f -s http://localhost:8080/v1/.well-known/ready > /dev/null; then
-        print_success "Weaviate is ready"
+    # Check if Redis is ready
+    if docker-compose ps redis | grep -q "Up"; then
+        print_success "Redis is ready"
     else
-        print_warning "Weaviate may still be starting up"
+        print_warning "Redis may still be starting up"
     fi
 else
     print_error "Failed to start Docker services"

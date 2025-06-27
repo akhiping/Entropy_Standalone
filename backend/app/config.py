@@ -30,9 +30,11 @@ class Settings(BaseSettings):
     # Database Settings
     DATABASE_URL: str = Field(default="sqlite:///./entropy.db", env="DATABASE_URL")
     
-    # Vector Database Settings
-    WEAVIATE_URL: str = Field(default="http://localhost:8080", env="WEAVIATE_URL")
-    WEAVIATE_API_KEY: Optional[str] = Field(default=None, env="WEAVIATE_API_KEY")
+    # Vector Database Settings (Pinecone)
+    PINECONE_API_KEY: str = Field(env="PINECONE_API_KEY")
+    PINECONE_ENVIRONMENT: str = Field(default="us-east-1", env="PINECONE_ENVIRONMENT")
+    PINECONE_CLOUD: str = Field(default="aws", env="PINECONE_CLOUD")
+    PINECONE_REGION: str = Field(default="us-east-1", env="PINECONE_REGION")
     
     # LLM Provider Settings
     OPENAI_API_KEY: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
